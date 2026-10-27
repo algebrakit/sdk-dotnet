@@ -20,8 +20,8 @@
     <Description>Official .NET SDK for the Algebrakit Webservice API — create exercise sessions, retrieve scores, lock/unlock sessions, validate exercises, and fetch session info.</Description>
     <PackageTags>algebrakit;sdk;math;education;exercises;api-client</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/algebrakit-org/sdk-dotnet</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/algebrakit-org/sdk-dotnet</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/algebrakit/sdk-dotnet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/algebrakit/sdk-dotnet</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>

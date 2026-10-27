@@ -68,4 +68,4 @@ Then inject `SessionService` wherever you need it. The example reads the key fro
 
 ## License
 
-Licensed under the [MIT License](https://github.com/algebrakit-org/sdk-dotnet/blob/main/LICENSE).
+Licensed under the [MIT License](https://github.com/algebrakit/sdk-dotnet/blob/main/LICENSE).
