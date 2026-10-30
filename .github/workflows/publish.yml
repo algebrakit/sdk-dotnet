@@ -40,10 +40,15 @@ jobs:
           dotnet nuget push "artifacts/*.nupkg"
           --api-key "${{ steps.login.outputs.NUGET_API_KEY }}"
           --source https://api.nuget.org/v3/index.json
-      - name: Create the GitHub release from CHANGELOG.md
+      - name: Create the GitHub release from CHANGELOG.md, or add the packages to an existing release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            # The release was created on github.com, which also created the tag: keep its notes
+            gh release upload "$GITHUB_REF_NAME" artifacts/*.nupkg --clobber
+            exit 0
+          fi
           notes=$(awk -v heading="## ${GITHUB_REF_NAME#v}" '$0 == heading { found = 1; next } /^## / { found = 0 } found' CHANGELOG.md)
           if [ -z "$notes" ]; then
             echo "::error::CHANGELOG.md has no section '## ${GITHUB_REF_NAME#v}'"
