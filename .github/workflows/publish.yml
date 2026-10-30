@@ -1,0 +1,52 @@
+name: Publish
+
+# Runs when you push a version tag such as v1.0.0. Publishes to NuGet with trusted publishing:
+# no API key is stored anywhere. NuGet/login exchanges this workflow's GitHub identity for a
+# short-lived key, using the trusted publishing policy on nuget.org: created by user 'mjdslob',
+# with package owner 'algebrakit'.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # create the GitHub release
+  id-token: write # NuGet trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Check that the tag matches the project version
+        run: |
+          version=$(dotnet msbuild AlgebrakitSDK/AlgebrakitSDK.csproj -getProperty:Version)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match <Version>$version</Version> in AlgebrakitSDK.csproj"
+            exit 1
+          fi
+      - name: Build the package
+        run: dotnet pack AlgebrakitSDK/AlgebrakitSDK.csproj -c Release -o artifacts
+      - name: Log in to NuGet (trusted publishing)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: mjdslob # the nuget.org user who created the trusted publishing policy
+      - name: Publish to NuGet (the .snupkg symbol package goes along automatically)
+        run: >
+          dotnet nuget push "artifacts/*.nupkg"
+          --api-key "${{ steps.login.outputs.NUGET_API_KEY }}"
+          --source https://api.nuget.org/v3/index.json
+      - name: Create the GitHub release from CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes=$(awk -v heading="## ${GITHUB_REF_NAME#v}" '$0 == heading { found = 1; next } /^## / { found = 0 } found' CHANGELOG.md)
+          if [ -z "$notes" ]; then
+            echo "::error::CHANGELOG.md has no section '## ${GITHUB_REF_NAME#v}'"
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "$notes" artifacts/*.nupkg
