@@ -19,7 +19,7 @@ public class CreateSessionRequest
     /// Optional reference to a predefined scoring model.
     /// </summary>
     [JsonPropertyName("scoringModel")]
-    public string ScoringModel { get; set; } = string.Empty;
+    public string? ScoringModel { get; set; }
 
     /// <summary>
     /// Turns off step-by-step evaluation, hints, and feedback for the student.

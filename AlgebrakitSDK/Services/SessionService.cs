@@ -1,189 +1,200 @@
-using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AlgebrakitSDK.Models.Requests;
 using AlgebrakitSDK.Models.Responses;
 
 namespace AlgebrakitSDK.Services;
 
 /// <summary>
-/// Service for managing exercise sessions.
+/// Client for the Algebrakit web service API. Create one instance and reuse it.
 /// </summary>
+/// <example>
+/// <code>
+/// var sessionService = new SessionService(Environment.GetEnvironmentVariable("ALGEBRAKIT_API_KEY")!);
+/// </code>
+/// </example>
 public class SessionService
 {
-    private readonly HttpClient _httpClient;
-    private readonly string _apiKey;
-    private readonly JsonSerializerOptions _jsonOptions = new()
+    /// <summary>The Algebrakit API in the default region (Ireland).</summary>
+    public const string DefaultBaseUrl = "https://api.algebrakit.com";
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
+    private readonly HttpClient _httpClient;
+    private readonly string _apiKey;
+    private readonly Uri _baseAddress;
+
     /// <summary>
-    /// Initializes a new instance of the <see cref="SessionService"/> class.
+    /// Creates a service with its own <see cref="HttpClient"/>.
+    /// </summary>
+    /// <param name="apiKey">Your Algebrakit API key. Keep it on your server; never send it to the browser.</param>
+    /// <param name="baseUrl">Base URL of the Algebrakit API, for example to use another region. Defaults to <see cref="DefaultBaseUrl"/>.</param>
+    /// <param name="timeout">Request timeout. Defaults to 30 seconds.</param>
+    public SessionService(string apiKey, string baseUrl = DefaultBaseUrl, TimeSpan? timeout = null)
+        : this(new HttpClient { BaseAddress = new Uri(baseUrl), Timeout = timeout ?? TimeSpan.FromSeconds(30) }, apiKey)
+    {
+    }
+
+    /// <summary>
+    /// Creates a service that uses your own <see cref="HttpClient"/>, for example from <c>IHttpClientFactory</c>.
+    /// The client isn't modified: the API key is sent with each request. If the client has no
+    /// <see cref="HttpClient.BaseAddress"/>, <see cref="DefaultBaseUrl"/> is used.
     /// </summary>
     /// <param name="httpClient">The HTTP client to use for API requests.</param>
-    /// <param name="apiKey">The API key for authentication.</param>
+    /// <param name="apiKey">Your Algebrakit API key.</param>
     public SessionService(HttpClient httpClient, string apiKey)
     {
-        _httpClient = httpClient;
-        _apiKey = apiKey;
-
-        // Add the API key to the default request headers
-        _httpClient.DefaultRequestHeaders.Add("X-API-KEY", _apiKey);
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _apiKey = string.IsNullOrEmpty(apiKey) ? throw new ArgumentException("The API key is required.", nameof(apiKey)) : apiKey;
+        _baseAddress = httpClient.BaseAddress ?? new Uri(DefaultBaseUrl);
     }
 
     /// <summary>
     /// Creates new exercise sessions.
     /// </summary>
-    /// <param name="request">The request containing session details.</param>
-    /// <returns>The response containing an array of created session details.</returns>
-    public async Task<CreateSessionResponse> CreateSessionAsync(CreateSessionRequest request)
-    {
-        var jsonContent = JsonSerializer.Serialize(request, _jsonOptions);
-        var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-        var response = await _httpClient.PostAsync("/session/create", httpContent);
-        response.EnsureSuccessStatusCode();
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var deserializedResponse = JsonSerializer.Deserialize<CreateSessionResponse>(responseContent);
-        if (deserializedResponse == null)
-        {
-            throw new InvalidOperationException("Failed to deserialize CreateSessionResponse.");
-        }
-        return deserializedResponse;
-    }
+    /// <param name="request">The exercises to create sessions for.</param>
+    /// <param name="cancellationToken">A token to cancel the request.</param>
+    /// <returns>For each exercise, whether it succeeded and the created sessions.</returns>
+    /// <exception cref="AlgebrakitApiException">The request failed.</exception>
+    public Task<CreateSessionResponse> CreateSessionAsync(CreateSessionRequest request, CancellationToken cancellationToken = default)
+        => PostAsync<CreateSessionRequest, CreateSessionResponse>("/session/create", request, cancellationToken);
 
     /// <summary>
     /// Retrieves scores for a specific session.
     /// </summary>
-    /// <param name="request">The request containing session ID and lock option.</param>
+    /// <param name="request">The session ID, and whether to lock the session.</param>
+    /// <param name="cancellationToken">A token to cancel the request.</param>
     /// <returns>The response containing session scores.</returns>
-    public async Task<SessionScoreResponse> GetSessionScoreAsync(SessionScoreRequest request)
-    {
-        var jsonContent = JsonSerializer.Serialize(request, _jsonOptions);
-        var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-        var response = await _httpClient.PostAsync("/session/score", httpContent);
-        response.EnsureSuccessStatusCode();
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var deserializedResponse = JsonSerializer.Deserialize<SessionScoreResponse>(responseContent);
-        if (deserializedResponse == null)
-        {
-            throw new InvalidOperationException("Failed to deserialize SessionScoreResponse.");
-        }
-        return deserializedResponse;
-    }
+    /// <exception cref="AlgebrakitApiException">The request failed.</exception>
+    public Task<SessionScoreResponse> GetSessionScoreAsync(SessionScoreRequest request, CancellationToken cancellationToken = default)
+        => PostAsync<SessionScoreRequest, SessionScoreResponse>("/session/score", request, cancellationToken);
 
     /// <summary>
     /// Locks or unlocks exercise sessions.
     /// </summary>
-    /// <param name="request">The request containing session IDs and the action to perform.</param>
+    /// <param name="request">The action (<c>LOCK</c>, <c>UNLOCK</c> or <c>FINALIZE</c>) and the session IDs.</param>
+    /// <param name="cancellationToken">A token to cancel the request.</param>
     /// <returns>The response for the lock or unlock action.</returns>
-    public async Task<SessionLockResponse> LockOrUnlockSessionAsync(SessionLockRequest request)
-    {
-        var jsonContent = JsonSerializer.Serialize(request, _jsonOptions);
-        var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-        var response = await _httpClient.PostAsync("/sessions/lock", httpContent);
-        response.EnsureSuccessStatusCode();
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var deserializedResponse = JsonSerializer.Deserialize<SessionLockResponse>(responseContent);
-        if (deserializedResponse == null)
-        {
-            throw new InvalidOperationException("Failed to deserialize SessionLockResponse.");
-        }
-        return deserializedResponse;
-    }
+    /// <exception cref="AlgebrakitApiException">The request failed.</exception>
+    public Task<SessionLockResponse> LockOrUnlockSessionAsync(SessionLockRequest request, CancellationToken cancellationToken = default)
+        => PostAsync<SessionLockRequest, SessionLockResponse>("/sessions/lock", request, cancellationToken);
 
     /// <summary>
-    /// Retrieves information for a specific session.
+    /// Retrieves detailed information about a session.
     /// </summary>
-    /// <param name="request">The request containing session ID.</param>
+    /// <param name="request">The request containing the session ID.</param>
+    /// <param name="cancellationToken">A token to cancel the request.</param>
     /// <returns>The response containing session information.</returns>
-    public async Task<SessionInfoResponse> GetSessionInfoAsync(SessionInfoRequest request)
-    {
-        var jsonContent = JsonSerializer.Serialize(request, _jsonOptions);
-        var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-        var response = await _httpClient.PostAsync("/session/info", httpContent);
-        response.EnsureSuccessStatusCode();
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var deserializedResponse = JsonSerializer.Deserialize<SessionInfoResponse>(responseContent);
-        if (deserializedResponse == null)
-        {
-            throw new InvalidOperationException("Failed to deserialize SessionInfoResponse.");
-        }
-        return deserializedResponse;
-    }
+    /// <exception cref="AlgebrakitApiException">The request failed.</exception>
+    public Task<SessionInfoResponse> GetSessionInfoAsync(SessionInfoRequest request, CancellationToken cancellationToken = default)
+        => PostAsync<SessionInfoRequest, SessionInfoResponse>("/session/info", request, cancellationToken);
 
     /// <summary>
     /// Retrieves existing sessions by their IDs.
     /// </summary>
-    /// <param name="request">The request containing session IDs.</param>
-    /// <returns>The response containing session data for the requested IDs.</returns>
-    public async Task<SessionRetrieveResponse> RetrieveSessionsAsync(SessionRetrieveRequest request)
-    {
-        var jsonContent = JsonSerializer.Serialize(request, _jsonOptions);
-        var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-        var response = await _httpClient.PostAsync("/session/retrieve", httpContent);
-        response.EnsureSuccessStatusCode();
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var deserializedResponse = JsonSerializer.Deserialize<SessionRetrieveResponse>(responseContent);
-        if (deserializedResponse == null)
-        {
-            throw new InvalidOperationException("Failed to deserialize SessionRetrieveResponse.");
-        }
-        return deserializedResponse;
-    }
+    /// <param name="request">The request containing the session IDs.</param>
+    /// <param name="cancellationToken">A token to cancel the request.</param>
+    /// <returns>The response containing the session data.</returns>
+    /// <exception cref="AlgebrakitApiException">The request failed.</exception>
+    public Task<SessionRetrieveResponse> RetrieveSessionsAsync(SessionRetrieveRequest request, CancellationToken cancellationToken = default)
+        => PostAsync<SessionRetrieveRequest, SessionRetrieveResponse>("/session/retrieve", request, cancellationToken);
 
     /// <summary>
     /// Validates an exercise.
     /// </summary>
-    /// <param name="request">The request containing exercise details.</param>
+    /// <param name="request">The exercise ID or specification to validate.</param>
+    /// <param name="cancellationToken">A token to cancel the request.</param>
     /// <returns>The response containing validation results.</returns>
-    public async Task<ExerciseValidateResponse> ValidateExerciseAsync(ExerciseValidateRequest request)
+    /// <exception cref="AlgebrakitApiException">The request failed.</exception>
+    public Task<ExerciseValidateResponse> ValidateExerciseAsync(ExerciseValidateRequest request, CancellationToken cancellationToken = default)
+        => PostAsync<ExerciseValidateRequest, ExerciseValidateResponse>("/exercise/validate", request, cancellationToken);
+
+    /// <summary>
+    /// Retrieves published information about an exercise (structure, versions, history).
+    /// </summary>
+    /// <param name="request">The request containing the exercise ID.</param>
+    /// <param name="cancellationToken">A token to cancel the request.</param>
+    /// <returns>The response containing exercise information.</returns>
+    /// <exception cref="AlgebrakitApiException">The request failed.</exception>
+    public Task<ExerciseInfoResponse> GetExerciseInfoAsync(ExerciseInfoRequest request, CancellationToken cancellationToken = default)
+        => PostAsync<ExerciseInfoRequest, ExerciseInfoResponse>("/exercise/published-info", request, cancellationToken);
+
+    /// <summary>
+    /// Sends a request to the API and returns the deserialized response.
+    /// </summary>
+    private async Task<TResponse> PostAsync<TRequest, TResponse>(string path, TRequest request, CancellationToken cancellationToken)
     {
-        var jsonContent = JsonSerializer.Serialize(request, _jsonOptions);
-        var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-        var response = await _httpClient.PostAsync("/exercise/validate", httpContent);
-        response.EnsureSuccessStatusCode();
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var deserializedResponse = JsonSerializer.Deserialize<ExerciseValidateResponse>(responseContent);
-        if (deserializedResponse == null)
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, new Uri(_baseAddress, path))
         {
-            throw new InvalidOperationException("Failed to deserialize ExerciseValidateResponse.");
+            Content = new StringContent(JsonSerializer.Serialize(request, JsonOptions), Encoding.UTF8, "application/json"),
+        };
+        httpRequest.Headers.Add("X-API-KEY", _apiKey);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
         }
-        return deserializedResponse;
+        catch (HttpRequestException e)
+        {
+            throw new AlgebrakitApiException($"Algebrakit API request failed: {e.Message}", null, e);
+        }
+        catch (TaskCanceledException e) when (!cancellationToken.IsCancellationRequested)
+        {
+            // HttpClient reports its timeout as a cancellation; the caller didn't cancel
+            throw new AlgebrakitApiException("Algebrakit API request timed out.", null, e);
+        }
+
+        using (response)
+        {
+            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new AlgebrakitApiException(
+                    $"Algebrakit API error {(int)response.StatusCode}: {ErrorMessage(body, response.ReasonPhrase)}",
+                    response.StatusCode);
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<TResponse>(body)
+                    ?? throw new AlgebrakitApiException($"The Algebrakit API returned an empty response for {path}.", response.StatusCode);
+            }
+            catch (JsonException e)
+            {
+                throw new AlgebrakitApiException($"Could not read the Algebrakit API response for {path}: {e.Message}", response.StatusCode, e);
+            }
+        }
     }
 
     /// <summary>
-    /// Retrieves published information about an exercise.
+    /// Extracts the error message from an API error response body,
+    /// for example <c>{"success":false,"error":"Could not validate credentials: ..."}</c>.
     /// </summary>
-    /// <param name="request">The request containing the exercise ID.</param>
-    /// <returns>The response containing published info about the exercise.</returns>
-    public async Task<ExerciseInfoResponse> GetExerciseInfoAsync(ExerciseInfoRequest request)
+    private static string ErrorMessage(string body, string? reasonPhrase)
     {
-        var jsonContent = JsonSerializer.Serialize(request, _jsonOptions);
-        var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-
-        var response = await _httpClient.PostAsync("/exercise/published-info", httpContent);
-        response.EnsureSuccessStatusCode();
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var deserializedResponse = JsonSerializer.Deserialize<ExerciseInfoResponse>(responseContent);
-        if (deserializedResponse == null)
+        try
         {
-            throw new InvalidOperationException("Failed to deserialize ExerciseInfoResponse.");
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var name in new[] { "error", "msg", "message" })
+                {
+                    if (document.RootElement.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
+                    {
+                        return value.GetString()!;
+                    }
+                }
+            }
         }
-        return deserializedResponse;
+        catch (JsonException)
+        {
+            // Not JSON: use the body as it is
+        }
+        return string.IsNullOrWhiteSpace(body) ? reasonPhrase ?? "no response body" : body;
     }
 }

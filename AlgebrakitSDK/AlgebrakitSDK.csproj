@@ -14,11 +14,12 @@
 
     <!-- NuGet package metadata -->
     <PackageId>Algebrakit.Sdk</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Authors>Algebrakit</Authors>
     <Company>Algebrakit</Company>
-    <Description>Official .NET SDK for the Algebrakit Webservice API — create exercise sessions, retrieve scores, lock/unlock sessions, validate exercises, and fetch session info.</Description>
-    <PackageTags>algebrakit;sdk;math;education;exercises;api-client</PackageTags>
+    <Description>Official .NET SDK for the Algebrakit API: create exercise sessions, get scores and session info, lock sessions and validate exercises.</Description>
+    <PackageTags>algebrakit;sdk;api-client;math;education;edtech;exercises</PackageTags>
+    <PackageReleaseNotes>https://github.com/algebrakit/sdk-dotnet/blob/main/CHANGELOG.md</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/algebrakit/sdk-dotnet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/algebrakit/sdk-dotnet</RepositoryUrl>
@@ -36,11 +37,13 @@
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <Deterministic>true</Deterministic>
+    <!-- Normalise source paths in published builds, for debugging with Source Link -->
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Packaged README shown on the NuGet.org listing page -->
-    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="../README.md" Pack="true" PackagePath="\" />
     <!-- Package icon shown on the NuGet.org listing page -->
     <None Include="icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
